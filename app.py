@@ -2,7 +2,7 @@ import streamlit as st
 from tempfile import NamedTemporaryFile
 from cause_list_parser import parse_pdf, build_index, format_line
 
-st.set_page_config(page_title="Cause List Selector", layout="centered")
+st.set_page_config(page_title="Cause List Selector @KashyapInCourt", layout="centered")
 st.title("Cause List Selector")
 
 pdf_file = st.file_uploader("Upload cause-list PDF", type=["pdf"])
