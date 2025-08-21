@@ -1,3 +1,4 @@
+# cause_list_parser.py
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
@@ -6,7 +7,8 @@ from pathlib import Path
 import fitz  # PyMuPDF
 
 # ---------- regex ----------
-SERIAL_RE = re.compile(r"^\s*(\d{1,2}(?:\.\d+)?)\b")
+# ⬇️ allow 1–3 digits before the optional ".sub" part (so 101, 115.30, etc.)
+SERIAL_RE = re.compile(r"^\s*(\d{1,3}(?:\.\d+)?)\b")
 COURT_NUM_RE = re.compile(r"COURT\s*NO\.?\s*[:\-]?\s*(\d+)", re.IGNORECASE)
 CHIEF_JUSTICE_RE = re.compile(r"CHIEF\s+JUSTICE'?S\s+COURT", re.IGNORECASE)
 VERSUS_RE = re.compile(r"^\s*versus\.?\s*$", re.IGNORECASE)
@@ -34,13 +36,13 @@ def smart_title(s: str) -> str:
 def is_meta_line(line: str) -> bool:
     if IGNORE_HEAD.search(line):
         return True
-    if re.search(r"\bNo\.", line):     # "SLP(Crl.) No." (number may be on next line)
+    if re.search(r"\bNo\.", line):
         return True
-    if re.fullmatch(r"[IVXLC]+(-[A-Z])?", line):  # II, II-A, XII, etc.
+    if re.fullmatch(r"[IVXLC]+(-[A-Z])?", line):
         return True
-    if re.fullmatch(r"[\d/().-]+", line):         # 11504/2025 etc.
+    if re.fullmatch(r"[\d/().-]+", line):
         return True
-    if re.search(r"\bPIL(?:-W|\b)", line):        # PIL, PIL-W
+    if re.search(r"\bPIL(?:-W|\b)", line):
         return True
     if re.search(r"IA No\.|FOR ADMISSION|EXEMPTION FROM FILING|CONDONATION OF DELAY|O\.T\.", line, re.IGNORECASE):
         return True
@@ -56,7 +58,6 @@ def detect_court_number(page) -> int | None:
     m = COURT_NUM_RE.search(txt)
     if m:
         return int(m.group(1))
-    # fallback: look in header blocks
     for (x0,y0,x1,y1,t,*_) in page.get_text("blocks"):
         if y1 > 180: break
         if CHIEF_JUSTICE_RE.search(t): return 1
@@ -65,13 +66,12 @@ def detect_court_number(page) -> int | None:
     return None
 
 def page_split_x(page) -> float:
-    """Find column split using the 'Advocate' header if present."""
     words = page.get_text("words")
     h = page.rect.height
     adv = [w for w in words if w[4].lower().startswith("advocate") and w[1] < h*0.35]
     if adv:
-        return min(w[0] for w in adv)  # start of 'Advocate' header
-    pr = [w for w in words if "Petitioner/Respondent".lower() in w[4].lower() and w[1] < h*0.35]
+        return min(w[0] for w in adv)
+    pr = [w for w in words if "petitioner/respondent" in w[4].lower() and w[1] < h*0.35]
     if pr:
         return max(w[2] for w in pr) + 10
     return page.rect.width * 0.70
@@ -100,7 +100,6 @@ def parse_pdf(pdf_path: str):
                 if not line:
                     continue
 
-                # start of a new serial
                 if is_left:
                     m = SERIAL_RE.match(line)
                     if m:
@@ -126,7 +125,6 @@ def parse_pdf(pdf_path: str):
                         capture_resp = False
                         continue
 
-    # keep only complete rows with a court id
     return [it for it in items if it.get("court") and it.get("petitioner") and it.get("respondent")]
 
 def build_index(items):
@@ -173,4 +171,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
